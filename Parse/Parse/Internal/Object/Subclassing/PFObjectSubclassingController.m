@@ -358,6 +358,13 @@ static NSNumber *PFNumberCreateSafe(const char *typeEncoding, const void *bytes)
                 // Behind the scenes this is a strcmp (lolwut?)
                 if ([cls conformsToProtocol:@protocol(PFSubclassing)] &&
                     ![cls conformsToProtocol:@protocol(PFSubclassingSkipAutomaticRegistration)]) {
+                    // Skip classes the runtime created dynamically (no backing image), e.g. the
+                    // `NSKVONotifying_*` subclasses KVO generates. They inherit `+parseClassName` from the
+                    // real subclass and would otherwise replace it in the registry on a rescan.
+                    // Checked last so the dyld lookup only runs for the handful of actual candidates.
+                    if (class_getImageName(cls) == NULL) {
+                        break;
+                    }
                     // Rescans (e.g. after NSBundleDidLoadNotification) must not churn already-registered classes.
                     if ([self->_registeredSubclasses[[cls parseClassName]] subclass] != cls) {
                         [self _rawRegisterSubclass:cls];
